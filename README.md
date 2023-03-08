@@ -1,4 +1,4 @@
-# EBS Params Contrloller
+# EBS Params Controller
 
 This controller provides a way to control iops and throughput parameters for EBS volumes
 provisioned by EBS CSI Driver with annotations on corresponding PersistentVolumeClaim objects in Kubernetes.
