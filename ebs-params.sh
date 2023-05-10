@@ -3,6 +3,7 @@
 source /shell_lib.sh
 
 EBS_VOL_MODS=''
+EBS_VOLS_JSON=''
 
 function __config__() {
     cat <<EOF
@@ -72,22 +73,30 @@ function pvc::process() {
     return 0
   fi
 
-  if [[ $(pvc::jq -r '.metadata.annotations."volume.beta.kubernetes.io/storage-provisioner"') != 'ebs.csi.aws.com' ]]; then
-    echo "Not a EBS CSI volume"
-    return 0
-  fi
-
   pvc::jq -r '.spec.volumeName'
 
   PV_JSON=$(context::jq '.snapshots.pvs[]|select(.object.metadata.name=="'"$VOLUME_NAME"'").object')
 
   EBS_VOL_ID=$(echo "$PV_JSON" | jq -r '.spec.csi.volumeHandle')
+  if [[ "$EBS_VOL_ID" == 'null' ]]; then
+    # No volume id found assuming CSI schema, try the legacy in-tree syntax
+    set +e
+    EBS_VOL_ID=$(echo "$PV_JSON" | jq -r '.spec.awsElasticBlockStore.volumeID' | grep -o 'vol-[0-9a-f][0-9a-f]*')
+    set -e
+    if [[ -z $EBS_VOL_ID ]]; then
+      echo "No VolumeID found in PV spec (not a EBS volume?), skipping"
+      return 0
+    fi
+  fi
   echo "$EBS_VOL_ID"
 
-  EBS_VOL_JSON="$(aws ec2 describe-volumes --volume-ids "$EBS_VOL_ID" | jq -c '.Volumes[0]')"
+  if [[ -z $EBS_VOLS_JSON ]]; then
+    EBS_VOLS_JSON="$(aws ec2 describe-volumes)"
+  fi
 
-  if [[ "$EBS_VOL_JSON" == 'null' ]]; then
-    echo "Failed to obtain volume information from AWS"
+  EBS_VOL_JSON="$(echo "$EBS_VOLS_JSON" | jq -c '.Volumes[]|select(.VolumeId=="'"$EBS_VOL_ID"'")')"
+  if [[ -z $EBS_VOL_JSON ]]; then
+    echo "No volume $EBS_VOL_ID found in AWS, skipping"
     return 0
   fi
 
@@ -97,6 +106,7 @@ function pvc::process() {
 
   EBS_VOL_IOPS="$(echo "$EBS_VOL_JSON" | jq -r '.Iops')"
   EBS_VOL_TP="$(echo "$EBS_VOL_JSON" | jq -r '.Throughput')"
+  EBS_VOL_TYPE="$(echo "$EBS_VOL_JSON" | jq -r '.VolumeType')"
   EBS_VOL_MOD_STATE="$(echo "$EBS_VOL_MODS" | jq -r '.VolumesModifications[]|select(.VolumeId=="'"$EBS_VOL_ID"'").ModificationState')"
   EBS_VOL_MOD_START_TIME="$(echo "$EBS_VOL_MODS" | jq -r '.VolumesModifications[]|select(.VolumeId=="'"$EBS_VOL_ID"'").StartTime')"
   EBS_VOL_MOD_END_TIME="$(echo "$EBS_VOL_MODS" | jq -r '.VolumesModifications[]|select(.VolumeId=="'"$EBS_VOL_ID"'").EndTime')"
@@ -125,6 +135,15 @@ function pvc::process() {
       EBS_VOL_MOD_ARGS+=' --throughput='"$SPEC_TP"
     fi
 
+    SPEC_TYPE="$(pvc::jq -r '.metadata.annotations."spec.epc.altinity.com/type"')"
+    if [[ "$SPEC_TYPE" == 'null' ]]; then
+      SPEC_TYPE=''
+    fi
+
+    if [[ -n $SPEC_TYPE && "$SPEC_TYPE" != "$EBS_VOL_TYPE" ]]; then
+      EBS_VOL_MOD_ARGS+=' --volume-type='"$SPEC_TYPE"
+    fi
+
     if [[ -n $EBS_VOL_MOD_ARGS ]]; then
       set +e
       MOD_JSON="$(aws ec2 modify-volume --volume-id="${EBS_VOL_ID}" ${EBS_VOL_MOD_ARGS})"
@@ -149,6 +168,10 @@ function pvc::process() {
 
   if [[ "$EBS_VOL_TP" != "$(pvc::jq -r '.metadata.annotations."status.epc.altinity.com/throughput"')" ]]; then
     JQFILTER+="${JQFILTER:+|}"'.metadata.annotations."status.epc.altinity.com/throughput"="'"$EBS_VOL_TP"'"'
+  fi
+
+  if [[ "$EBS_VOL_TYPE" != "$(pvc::jq -r '.metadata.annotations."status.epc.altinity.com/type"')" ]]; then
+    JQFILTER+="${JQFILTER:+|}"'.metadata.annotations."status.epc.altinity.com/type"="'"$EBS_VOL_TYPE"'"'
   fi
 
   if [[ "$EBS_VOL_MOD_STATE" != "$(pvc::jq -r '.metadata.annotations."status.epc.altinity.com/mod-state"')" ]]; then
