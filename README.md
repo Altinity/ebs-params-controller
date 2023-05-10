@@ -14,6 +14,10 @@ Defines the required Iops value. Example: `spec.epc.altinity.com/iops: "6000"`
 
 Defines the required Throughput value. Example: `spec.epc.altinity.com/throughput: "300"`
 
+### spec.epc.altinity.com/type
+
+Defines the required EBS volume type. Example: `spec.epc.altinity.com/type: "gp3"`
+
 ## Annotations to display current volume status
 
 ### status.epc.altinity.com/iops
@@ -23,6 +27,10 @@ Current Iops.
 ### status.epc.altinity.com/throughput
 
 Current Throughput.
+
+### status.epc.altinity.com/type
+
+Current EBS volume type.
 
 ### status.epc.altinity.com/mod-state
 
