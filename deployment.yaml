@@ -57,8 +57,6 @@ spec:
         prometheus.io/port: "9115"
     spec:
       serviceAccountName: ebs-params-controller
-      imagePullSecrets:
-        - name: "${image_pull_secret}"
       containers:
       - name: controller
         image: altinity/ebs-params-controller:v0.3.0
