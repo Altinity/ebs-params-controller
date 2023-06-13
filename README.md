@@ -43,3 +43,9 @@ Timestamp of the beginning of last modification attempt. Empty string if never m
 ### status.epc.altinity.com/mod-end-time
 
 Timestamp of the end of last modification attempt. Empty string if modification is in progress or the volume was never modified before.   
+
+## License
+
+Copyright (c) 2022-2023, Altinity Inc and/or its affiliates. All rights reserved.
+
+EBS Params Controller is licensed under the Apache License 2.0.
