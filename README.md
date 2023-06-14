@@ -4,6 +4,10 @@ This controller provides a way to control iops and throughput parameters for EBS
 provisioned by EBS CSI Driver with annotations on corresponding PersistentVolumeClaim objects in Kubernetes.
 It also sets some annotations on PVCs backed by EBS CSI Driver representing current parameters and last modification status and timestamps.
 
+## Installation 
+
+See [example deployment manifest](https://github.com/Altinity/ebs-params-controller/blob/main/deployment.yaml).
+
 ## Annotations to control parameters
 
 | Annotation | Description | Example |
