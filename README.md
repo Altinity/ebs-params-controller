@@ -6,7 +6,7 @@ It also sets some annotations on PVCs backed by EBS CSI Driver representing curr
 
 ## Installation 
 
-**To create your Amazon EBS CSI plugin IAM role with the AWS Management Console**
+**To create your EBS Params Controller IAM role with the AWS Management Console**
 
 1. Open the IAM console at https://console.aws.amazon.com/iam/
 2. In the left navigation pane, choose **Roles**.
