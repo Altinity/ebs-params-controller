@@ -1,6 +1,6 @@
 # Parameters:
 #   - role-arn -- IAM role with permissions to modify EBS volumes. Can be the same as for EBS CSI driver
-                see https://docs.aws.amazon.com/eks/latest/userguide/csi-iam-role.html
+#                 see https://docs.aws.amazon.com/eks/latest/userguide/csi-iam-role.html
 #   - namespace
 ---
 apiVersion: v1
