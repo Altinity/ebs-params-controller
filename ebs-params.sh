@@ -21,7 +21,7 @@ kubernetes:
   executeHookOnEvent: []
 schedule:
 - name: cron
-  crontab: "*/5 * * * *"
+  crontab: "*/20 * * * *"
   includeSnapshotsFrom: ["pvcs", "pvs"]
 EOF
 }
@@ -115,7 +115,7 @@ function pvc::process() {
   fi
 
   if [[ -n $EBS_VOL_MOD_END_TIME || -z $EBS_VOL_MOD_START_TIME ]]; then
-    EBS_VOL_MOD_ARGS=''
+    EBS_VOL_MOD_ARGS=()
 
     SPEC_IOPS="$(pvc::jq -r '.metadata.annotations."spec.epc.altinity.com/iops"')"
     if [[ "$SPEC_IOPS" == 'null' ]]; then
@@ -123,7 +123,7 @@ function pvc::process() {
     fi
 
     if [[ -n $SPEC_IOPS && "$SPEC_IOPS" != "$EBS_VOL_IOPS" ]]; then
-      EBS_VOL_MOD_ARGS+=' --iops='"$SPEC_IOPS"
+      EBS_VOL_MOD_ARGS+=('--iops='"$SPEC_IOPS")
     fi
 
     SPEC_TP="$(pvc::jq -r '.metadata.annotations."spec.epc.altinity.com/throughput"')"
@@ -132,7 +132,7 @@ function pvc::process() {
     fi
 
     if [[ -n $SPEC_TP && "$SPEC_TP" != "$EBS_VOL_TP" ]]; then
-      EBS_VOL_MOD_ARGS+=' --throughput='"$SPEC_TP"
+      EBS_VOL_MOD_ARGS+=('--throughput='"$SPEC_TP")
     fi
 
     SPEC_TYPE="$(pvc::jq -r '.metadata.annotations."spec.epc.altinity.com/type"')"
@@ -141,22 +141,23 @@ function pvc::process() {
     fi
 
     if [[ -n $SPEC_TYPE && "$SPEC_TYPE" != "$EBS_VOL_TYPE" ]]; then
-      EBS_VOL_MOD_ARGS+=' --volume-type='"$SPEC_TYPE"
+      EBS_VOL_MOD_ARGS+=('--volume-type='"$SPEC_TYPE")
     fi
 
-    if [[ -n $EBS_VOL_MOD_ARGS ]]; then
+    if (( ${#EBS_VOL_MOD_ARGS[@]} )); then
       set +e
-      MOD_JSON="$(aws ec2 modify-volume --volume-id="${EBS_VOL_ID}" ${EBS_VOL_MOD_ARGS})"
+      MOD_OUT="$(aws ec2 modify-volume --volume-id="${EBS_VOL_ID}" "${EBS_VOL_MOD_ARGS[@]}" 2>&1)"
       RET=$?
       set -e
       if [[ $RET -ne 0 ]]; then
         echo "Aws CLI failed with exit code ${RET}"
-        return 0
+        echo "$MOD_OUT"
+	EBS_VOL_MOD_STATE="$(jq -nc --arg code "$RET" --arg msg "$(echo "$MOD_OUT" | awk NF)" '{ERROR:{code:$code,msg:$msg}}')"
+      else
+        EBS_VOL_MOD_STATE="$(echo "$MOD_OUT" | jq -r '.VolumeModification.ModificationState')"
+        EBS_VOL_MOD_START_TIME="$(echo "$MOD_OUT" | jq -r '.VolumeModification.StartTime')"
+        EBS_VOL_MOD_END_TIME=''
       fi
-
-      EBS_VOL_MOD_STATE="$(echo "$MOD_JSON" | jq -r '.VolumeModification.ModificationState')"
-      EBS_VOL_MOD_START_TIME="$(echo "$MOD_JSON" | jq -r '.VolumeModification.StartTime')"
-      EBS_VOL_MOD_END_TIME=''
     fi
   fi
 
@@ -175,7 +176,7 @@ function pvc::process() {
   fi
 
   if [[ "$EBS_VOL_MOD_STATE" != "$(pvc::jq -r '.metadata.annotations."status.epc.altinity.com/mod-state"')" ]]; then
-    JQFILTER+="${JQFILTER:+|}"'.metadata.annotations."status.epc.altinity.com/mod-state"="'"$EBS_VOL_MOD_STATE"'"'
+    JQFILTER+="${JQFILTER:+|}"'.metadata.annotations."status.epc.altinity.com/mod-state"='"$(echo "$EBS_VOL_MOD_STATE" | jq -R)"
   fi
 
   if [[ "$EBS_VOL_MOD_START_TIME" != "$(pvc::jq -r '.metadata.annotations."status.epc.altinity.com/mod-start-time"')" ]]; then
@@ -194,7 +195,7 @@ operation: JQPatch
 kind: PersistentVolumeClaim
 namespace: $(pvc::jq -r '.metadata.namespace')
 name: $(pvc::jq -r '.metadata.name')
-jqFilter: '${JQFILTER}'
+jqFilter: $(echo "$JQFILTER" | jq -R)
 EOF
   fi
 }

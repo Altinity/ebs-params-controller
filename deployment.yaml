@@ -56,7 +56,7 @@ spec:
       serviceAccountName: ebs-params-controller
       containers:
       - name: controller
-        image: altinity/ebs-params-controller:v0.3.0
+        image: altinity/ebs-params-controller:v0.4.0
         env:
         - name: LOG_TYPE
           value: text
